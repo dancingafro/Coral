@@ -181,29 +181,35 @@ namespace Coral {
 		};
 #endif
 
+		// hostfxr is backward compatible: installing a newer .NET (e.g. 10) replaces the 9.x
+		// host/fxr folder, and the newer hostfxr still runs net9.0. Pick the newest >= 9.
+		std::filesystem::path bestPath;
+		std::array<int, 3> bestVersion = { -1, -1, -1 };
+
 		for (const auto& path : searchPaths)
 		{
 			if (!std::filesystem::exists(path))
 				continue;
 
-			for (const auto& dir : std::filesystem::recursive_directory_iterator(path))
+			for (const auto& dir : std::filesystem::directory_iterator(path))
 			{
 				if (!dir.is_directory())
 					continue;
 
-				auto dirPath = dir.path().filename();
-				char version = dirPath.string()[0];
-
-				if (version != '9')
+				std::array<int, 3> version = { 0, 0, 0 };
+				if (sscanf(dir.path().filename().string().c_str(), "%d.%d.%d", &version[0], &version[1], &version[2]) < 1 || version[0] < 9)
 					continue;
 
-				auto res = dir / std::filesystem::path(CORAL_HOSTFXR_NAME);
-				CORAL_VERIFY(std::filesystem::exists(res));
-				return res;
+				auto res = dir.path() / std::filesystem::path(CORAL_HOSTFXR_NAME);
+				if (std::filesystem::exists(res) && version > bestVersion)
+				{
+					bestVersion = version;
+					bestPath = res;
+				}
 			}
 		}
 
-		return "";
+		return bestPath;
 	}
 
 	bool HostInstance::LoadHostFXR() const
